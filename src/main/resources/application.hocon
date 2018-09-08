@@ -1,0 +1,24 @@
+
+kafka{
+     consumer{
+         "bootstrap.servers" = ["localhost:9092"]
+         "group.id" = test5
+         "enable.auto.commit"= false
+         "auto.offset.reset" = earliest
+         topic.name = test
+
+     }
+     producer{
+         "bootstrap.servers" = ["localhost:9092"]
+         "acks" = "1"
+         "compression.type" = lz4
+         "batch.size" = 102400
+         "client.id" = ali
+         "linger.ms" = 50
+     }
+}
+
+rest {
+    port = 7070
+    ip = 0.0.0.0
+}
