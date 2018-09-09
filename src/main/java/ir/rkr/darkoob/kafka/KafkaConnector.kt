@@ -7,29 +7,28 @@ import java.util.*
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 
-
 class KafkaConnector(val config: Config) {
 
 
-    val consumer:KafkaConsumer<String,String>
-    val producer:KafkaProducer<String,String>
+    val consumer:KafkaConsumer<ByteArray,ByteArray>
+    val producer:KafkaProducer<ByteArray,ByteArray>
 
     val topicName = config.getString("kafka.consumer.topic.name")
     init {
 
 
         val consumercfg = Properties()
-        consumercfg.put("key.deserializer","org.apache.kafka.common.serialization.StringDeserializer" )
-        consumercfg.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer")
+        consumercfg.put("key.deserializer","org.apache.kafka.common.serialization.ByteArrayDeserializer" )
+        consumercfg.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer")
 
-        config.getObject("kafka.consumer").forEach({x,y -> println("$x --> $y"); consumercfg.put(x,y.unwrapped())})
+        config.getObject("kafka.consumer").forEach({x,y -> println("kafka config $x --> $y"); consumercfg.put(x,y.unwrapped())})
         consumer = KafkaConsumer(consumercfg)
         consumer.subscribe(Collections.singletonList(topicName))
 
 
         val  producercfg= Properties()
-        producercfg.put("key.serializer","org.apache.kafka.common.serialization.StringSerializer" )
-        producercfg.put("value.serializer","org.apache.kafka.common.serialization.StringSerializer" )
+        producercfg.put("key.serializer",  "org.apache.kafka.common.serialization.ByteArraySerializer" )
+        producercfg.put("value.serializer","org.apache.kafka.common.serialization.ByteArraySerializer" )
         config.getObject("kafka.producer").forEach({x,y -> println("$x --> $y"); producercfg.put(x,y.unwrapped())})
         producer = KafkaProducer(producercfg)
 
@@ -42,7 +41,7 @@ class KafkaConnector(val config: Config) {
        consumer.commitAsync()
    }
 
-    fun put(key:String, value:String){
+    fun put(key:ByteArray, value:ByteArray){
         producer.send(ProducerRecord(topicName,key,value))
     }
 

@@ -18,6 +18,14 @@ kafka{
      }
 }
 
+hbase{
+     table = table1
+     config{
+
+           "hbase.zookeeper.property.clientPort"= "2181"
+           "hbase.zookeeper.quorum" = "zk1"
+     }
+}
 rest {
     port = 7070
     ip = 0.0.0.0

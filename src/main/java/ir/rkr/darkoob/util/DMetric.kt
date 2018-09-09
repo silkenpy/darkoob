@@ -14,7 +14,7 @@ data class MeterPojo(val count: Long,
 
 data class ServerInfo(val gauges: Map<String, Any>, val meters: Map<String, MeterPojo>)
 
-class LayeMetrics {
+class DMetric {
 
     val metricRegistry = MetricRegistry()
 
