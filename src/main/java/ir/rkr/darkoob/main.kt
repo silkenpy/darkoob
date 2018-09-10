@@ -18,8 +18,8 @@ fun main(args: Array<String>) {
     val logger = KotlinLogging.logger {}
     val config = ConfigFactory.defaultApplication()
     val dmetirc = DMetric()
-    val kafka = KafkaConnector(config)
-    JettyRestServer(kafka, config, dmetirc)
+  //  val kafka = KafkaConnector(config)
+    JettyRestServer(config, dmetirc)
 //    val hbase = HbaseConnector("table1",config,dmetirc)
 //    hbase.put("personal","name","salam".toByteArray(),"I am Ali".toByteArray())
 

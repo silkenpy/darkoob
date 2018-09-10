@@ -2,10 +2,9 @@
 kafka{
      consumer{
          "bootstrap.servers" = ["localhost:9092"]
-         "group.id" = test5
+         "group.id" = test6
          "enable.auto.commit"= false
-         "auto.offset.reset" = earliest
-         topic.name = test
+         "auto.offset.reset" = latest
 
      }
      producer{
