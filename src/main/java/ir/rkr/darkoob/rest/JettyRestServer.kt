@@ -2,6 +2,7 @@ package ir.rkr.darkoob.rest
 
 import com.google.gson.GsonBuilder
 import com.typesafe.config.Config
+import ir.rkr.darkoob.hbase.HbaseConnector
 import ir.rkr.darkoob.kafka.KafkaConnector
 import ir.rkr.darkoob.util.DMetric
 import ir.rkr.darkoob.version
@@ -20,7 +21,7 @@ import javax.servlet.http.HttpServletResponse
 /**
  * [Results] is a data model for responses.
  */
-data class Results(var results: HashMap<String, String> = HashMap<String, String>())
+data class Results(var results: HashMap<ByteArray, ByteArray> = HashMap<ByteArray, ByteArray>())
 
 /**
  * [JettyRestServer] is a rest-based service to handle requests of redis cluster with an additional
@@ -41,12 +42,17 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
         val http = ServerConnector(server).apply { port = config.getInt("rest.port") }
         server.addConnector(http)
         val handler = ServletContextHandler(server, "/")
+        val kafka = KafkaConnector(config)
+        val pfTable= HbaseConnector("pf",config,dMetric)
 
 
         handler.addServlet(ServletHolder(object : HttpServlet() {
+
+            /**
+             * to post binary data to kafka
+             */
             override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
 
-                val kafka = KafkaConnector("pf", config)
                 val value = req.inputStream.readBytes(req.contentLength)
                 val key = req.getParameter("key")
                 val ts = req.getParameter("ts")
@@ -55,12 +61,12 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
                 dMetric.MarkKafkaTotal(1)
 
                 try {
-                    kafka.put("$key+$ts".toByteArray(), value)
+                    kafka.put("pf","$key".toByteArray(), value)
                     dMetric.MarkKafkaInsert(1)
                 } catch (e: Exception) {
                     logger.trace { e }
                     dMetric.MarkKafkaErrInsert(1)
-                    logger.trace { "key=$key or value=$value is not valid." }
+                    logger.trace { "key=$key or ts=$ts or value=$value is not valid." }
                 }
 
                 resp.apply {
@@ -68,17 +74,41 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
                     addHeader("Content-Type", "application/json; charset=utf-8")
                 }
             }
+
+            /**
+             * to Retrieve data from Hbase
+             */
+
+            override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
+
+                val value = req.inputStream.readBytes(req.contentLength)
+                val key   = req.getParameter("key")
+                val ts    = req.getParameter("ts")
+
+                logger.trace { "key=$key ts=$ts value=$value" }
+//                dMetric.MarkKafkaTotal(1)
+                var result = Results()
+
+
+                try {
+                    result.results[key.toByteArray()] =  pfTable.get(key.toByteArray(),"cf","q")
+//                    dMetric.MarkKafkaInsert(1)
+                } catch (e: Exception) {
+                    logger.trace { e }
+//                    dMetric.MarkKafkaErrInsert(1)
+//                    logger.trace { "key=$key or ts=$ts orvalue=$value is not valid." }
+                }
+
+                resp.apply {
+                    status = HttpStatus.OK_200
+                    addHeader("Content-Type", "application/x-binary")
+             //       writer.write(String(pfTable.get(key.toByteArray(),"cf","q")))
+                    val os = resp.outputStream
+                    os.write(result.results.size)
+                }
+            }
         }), "/pf")
 
-
-//
-//                val tmp = FileOutputStream("/tmp/milad.jpg")
-//                tmp.write(kafka.get())
-//                tmp.flush()
-//                tmp.close()
-//                val s = String(buffer)
-//                val msg = Results()
-//                println(s)
 
 
         handler.addServlet(ServletHolder(object : HttpServlet() {
@@ -106,6 +136,5 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
         }), "/health")
 
         server.start()
-
     }
 }

@@ -6,8 +6,16 @@ import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import java.util.*
+import javax.print.DocFlavor
+import kotlin.collections.HashMap
 
-class KafkaConnector(val topicName: String, config: Config) {
+
+/**
+ * [Results] is a data model for responses.
+ */
+data class Results(var results: HashMap<ByteArray, ByteArray> = HashMap<ByteArray, ByteArray>())
+
+class KafkaConnector( config: Config) {
 
 
     val consumer: KafkaConsumer<ByteArray, ByteArray>
@@ -23,8 +31,6 @@ class KafkaConnector(val topicName: String, config: Config) {
 
         config.getObject("kafka.consumer").forEach({ x, y -> println("kafka config $x --> $y"); consumercfg.put(x, y.unwrapped()) })
         consumer = KafkaConsumer(consumercfg)
-        consumer.subscribe(Collections.singletonList(topicName))
-
 
         val producercfg = Properties()
         producercfg.put("key.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer")
@@ -32,17 +38,21 @@ class KafkaConnector(val topicName: String, config: Config) {
         config.getObject("kafka.producer").forEach({ x, y -> println("$x --> $y"); producercfg.put(x, y.unwrapped()) })
         producer = KafkaProducer(producercfg)
 
+        Thread.sleep(100)
+
     }
 
-
-    fun get(): ByteArray {
+    fun get(topicName:String): Map<ByteArray,ByteArray> {
+        consumer.subscribe(Collections.singletonList(topicName))
         val res = consumer.poll(2000)
-        //res.records(topicName).forEach { it ->  return it.value()}
-        return res.records(topicName).first().value()
-//       consumer.commitAsync()
+        val msg = HashMap<ByteArray,ByteArray>()
+        res.records(topicName).forEach { it ->  msg[it.key()]=it.value()}
+        consumer.commitAsync()
+        return msg
     }
 
-    fun put(key: ByteArray, value: ByteArray) {
+
+    fun put(topicName:String,key: ByteArray, value: ByteArray) {
         producer.send(ProducerRecord(topicName, key, value))
     }
 
