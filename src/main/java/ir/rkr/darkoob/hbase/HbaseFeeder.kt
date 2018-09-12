@@ -3,7 +3,9 @@ package ir.rkr.darkoob.hbase
 import com.typesafe.config.Config
 import ir.rkr.darkoob.kafka.KafkaConnector
 import ir.rkr.darkoob.util.DMetric
-import kotlin.concurrent.thread
+import java.nio.ByteBuffer
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class HbaseFeeder(config: Config, dMetric: DMetric) {
 
@@ -11,22 +13,22 @@ class HbaseFeeder(config: Config, dMetric: DMetric) {
     val pfHbase = HbaseConnector("pf", config, dMetric)
 
     init {
-        thread {
+        Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay({
+
             println("HbaseFeeder is initializing !")
-            while (true) {
-                val msg = kafka.get("pf")
 
-                if (msg.isEmpty()) {
-                    Thread.sleep(10)
-                } else {
+            val msg = kafka.get("pf")
+            if (msg.isEmpty()) return@scheduleWithFixedDelay
 
-                    msg.forEach { it -> println(String(it.key)+" "+String(it.value)); pfHbase.put(it.key, it.value, "cf", "q") }
-                }
+            msg.forEach { it ->
+
+                println(String(it.key) + " " + String(it.value));
+                pfHbase.put(it.key, it.value, "cf", "q")
             }
-
-        }
+        }, 0, 100, TimeUnit.MILLISECONDS)
     }
-    fun start(){
+
+    fun start() {
         println("HbaseFeeder is Started !")
     }
 }
