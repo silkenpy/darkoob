@@ -14,7 +14,9 @@ import org.eclipse.jetty.server.ServerConnector
 import org.eclipse.jetty.servlet.ServletContextHandler
 import org.eclipse.jetty.servlet.ServletHolder
 import org.eclipse.jetty.util.thread.QueuedThreadPool
+import java.io.ObjectOutputStream
 import java.nio.ByteBuffer
+import java.util.*
 import javax.servlet.http.HttpServlet
 import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
@@ -50,10 +52,92 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
         val http = ServerConnector(server).apply { port = config.getInt("rest.port") }
         server.addConnector(http)
         val handler = ServletContextHandler(server, "/")
-        val kafka = KafkaConnector(config)
+
+        val pfKafka = KafkaConnector("pf", config)
         val pfTable = HbaseConnector("pf", config, dMetric)
 
+        val tkKafka = KafkaConnector("tk", config)
+        val tkTable = HbaseConnector("tk", config, dMetric)
 
+        val chKafka = KafkaConnector("ch", config)
+        val chTable = HbaseConnector("ch", config, dMetric)
+
+//          /**PF
+//         **************************************************************************************************************/
+//        handler.addServlet(ServletHolder(object : HttpServlet() {
+//
+//            /**
+//             * to post binary data to kafka
+//             */
+//            override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
+//
+//                val kafkaValue = req.inputStream.readBytes(req.contentLength)
+//                val key = strToLongByte(req.getParameter("key"))
+//                var ts = strToLongByte(System.currentTimeMillis().toString())
+//
+//                if (!req.getParameter("ts").isNullOrBlank())
+//                    ts = strToLongByte(req.getParameter("ts"))
+//
+//                val salt = murmur.hashBytes(key).asBytes()
+//                val kafkaKey = ByteBuffer.allocate(salt.size + key.size).put(salt).put(key).array()
+//
+//                dMetric.MarkKafkaTotal(1)
+//
+//                try {
+//                    pfKafka.put(kafkaKey, kafkaValue)
+//                    dMetric.MarkKafkaInsert(1)
+//                } catch (e: Exception) {
+//                    logger.trace { e }
+//                    dMetric.MarkKafkaErrInsert(1)
+//                }
+//
+//                resp.apply {
+//                    status = HttpStatus.OK_200
+//                    addHeader("Content-Type", "application/json; charset=utf-8")
+//                }
+//            }
+//
+//            /**
+//             * to Retrieve data from Hbase
+//             */
+//
+//            override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
+//
+//                val key = strToLongByte(req.getParameter("key"))
+//
+////                logger.trace { "key=$key value=$value" }
+////                dMetric.MarkKafkaTotal(1)
+//                val result = Results()
+//
+//                try {
+//                    val salt = murmur.hashBytes(key).asBytes()
+//                    val rowKey = ByteBuffer.allocate(salt.size + key.size).put(salt).put(key).array()
+//
+//                    result.results[key] = pfTable.get(rowKey, "cf", "q")
+////                    pfTable.scanWithPrefix(rowKey).forEach { it -> result.results[it.key]=it.value}
+////                    pfTable.scan(rowKey,rowKey).forEach { it -> result.results[it.key]=it.value}
+//
+//
+////                    dMetric.MarkKafkaInsert(1)
+//                } catch (e: Exception) {
+//                    logger.trace { e }
+////                    dMetric.MarkKafkaErrInsert(1)
+////                    logger.trace { "key=$key or ts=$ts orvalue=$value is not valid." }
+//                }
+//
+//                resp.apply {
+//                    status = HttpStatus.OK_200
+//                    addHeader("Content-Type", "application/x-binary")
+//                    //       writer.write(String(pfTable.get(key.toByteArray(),"cf","q")))
+//                    val os = resp.outputStream
+//                    os.write(result.results.size)
+//                }
+//            }
+//        }), "/pf")
+
+
+        /**TK
+         **************************************************************************************************************/
         handler.addServlet(ServletHolder(object : HttpServlet() {
 
             /**
@@ -61,20 +145,25 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
              */
             override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
 
-                val value = req.inputStream.readBytes(req.contentLength)
-                val key = strToLongByte(req.getParameter("key"))
-                var ts = strToLongByte(System.currentTimeMillis().toString())
+                val kafkaValue = req.inputStream.readBytes(req.contentLength)
+                println(kafkaValue.size)
+                val key = Base64.getDecoder().decode(req.getParameter("key"))
+                val devid = Base64.getDecoder().decode(req.getParameter("devid"))
 
-                if (!req.getParameter("ts").isNullOrBlank())
-                    ts = strToLongByte(req.getParameter("ts"))
+//                val key = strToLongByte(req.getParameter("key"))
+//                var ts = strToLongByte(System.currentTimeMillis().toString())
+//
+//                if (!req.getParameter("ts").isNullOrBlank())
+//                    ts = strToLongByte(req.getParameter("ts"))
 
+                val devId = murmur.hashBytes(devid).asBytes()
                 val salt = murmur.hashBytes(key).asBytes()
-                val kafkaKey = ByteBuffer.allocate(salt.size + key.size ).put(salt).put(key).array()
+                val kafkaKey = ByteBuffer.allocate(salt.size + key.size + devId.size).put(salt).put(key).put(devId).array()
 
                 dMetric.MarkKafkaTotal(1)
 
                 try {
-                    kafka.put("pf", kafkaKey, value)
+                    tkKafka.put(kafkaKey, kafkaValue)
                     dMetric.MarkKafkaInsert(1)
                 } catch (e: Exception) {
                     logger.trace { e }
@@ -93,7 +182,7 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
 
             override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
 
-                val key = strToLongByte(req.getParameter("key"))
+                val key = Base64.getDecoder().decode(req.getParameter("key"))
 
 //                logger.trace { "key=$key value=$value" }
 //                dMetric.MarkKafkaTotal(1)
@@ -103,7 +192,12 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
                     val salt = murmur.hashBytes(key).asBytes()
                     val rowKey = ByteBuffer.allocate(salt.size + key.size).put(salt).put(key).array()
 
-                    result.results[key] = pfTable.get(rowKey, "cf", "q")
+//                    result.results[key] = pfTable.get(rowKey, "cf", "q")
+//                    pfTable.scanWithPrefix(rowKey).forEach { it -> result.results[it.key]=it.value}
+                    tkTable.scanWithPrefix(rowKey).forEach { it -> result.results[it.key] = it.value ;
+                        println(it.value.size)}
+
+
 
 //                    dMetric.MarkKafkaInsert(1)
                 } catch (e: Exception) {
@@ -115,13 +209,87 @@ class JettyRestServer(val config: Config, val dMetric: DMetric) : HttpServlet() 
                 resp.apply {
                     status = HttpStatus.OK_200
                     addHeader("Content-Type", "application/x-binary")
-                    //       writer.write(String(pfTable.get(key.toByteArray(),"cf","q")))
+//                           writer.write(gson.toJson(result.results).toByteArray(Charsets.UTF_8))
                     val os = resp.outputStream
-                    os.write(result.results.size)
+                    val oos = ObjectOutputStream(os)
+                    oos.writeObject(result.results)
                 }
             }
-        }), "/pf")
+        }), "/tk")
 
+
+//        /**CH
+//         **************************************************************************************************************/
+//        handler.addServlet(ServletHolder(object : HttpServlet() {
+//
+//            /**
+//             * to post binary data to kafka
+//             */
+//            override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
+//
+//                val kafkaValue = req.inputStream.readBytes(req.contentLength)
+//                val key = strToLongByte(req.getParameter("key"))
+//                var ts = strToLongByte(System.currentTimeMillis().toString())
+//
+//                if (!req.getParameter("ts").isNullOrBlank())
+//                    ts = strToLongByte(req.getParameter("ts"))
+//
+//                val salt = murmur.hashBytes(key).asBytes()
+//                val kafkaKey = ByteBuffer.allocate(salt.size + key.size).put(salt).put(key).array()
+//
+//                dMetric.MarkKafkaTotal(1)
+//
+//                try {
+//                    chKafka.put(kafkaKey, kafkaValue)
+//                    dMetric.MarkKafkaInsert(1)
+//                } catch (e: Exception) {
+//                    logger.trace { e }
+//                    dMetric.MarkKafkaErrInsert(1)
+//                }
+//
+//                resp.apply {
+//                    status = HttpStatus.OK_200
+//                    addHeader("Content-Type", "application/json; charset=utf-8")
+//                }
+//            }
+//
+//            /**
+//             * to Retrieve data from Hbase
+//             */
+//
+//            override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
+//
+//                val key = strToLongByte(req.getParameter("key"))
+//
+////                logger.trace { "key=$key value=$value" }
+////                dMetric.MarkKafkaTotal(1)
+//                val result = Results()
+//
+//                try {
+//                    val salt = murmur.hashBytes(key).asBytes()
+//                    val rowKey = ByteBuffer.allocate(salt.size + key.size).put(salt).put(key).array()
+//
+////                    result.results[key] = pfTable.get(rowKey, "cf", "q")
+////                    pfTable.scanWithPrefix(rowKey).forEach { it -> result.results[it.key]=it.value}
+//                    chTable.scan(rowKey,rowKey).forEach { it -> result.results[it.key]=it.value}
+//
+//
+////                    dMetric.MarkKafkaInsert(1)
+//                } catch (e: Exception) {
+//                    logger.trace { e }
+////                    dMetric.MarkKafkaErrInsert(1)
+////                    logger.trace { "key=$key or ts=$ts orvalue=$value is not valid." }
+//                }
+//
+//                resp.apply {
+//                    status = HttpStatus.OK_200
+//                    addHeader("Content-Type", "application/x-binary")
+//                    //       writer.write(String(pfTable.get(key.toByteArray(),"cf","q")))
+//                    val os = resp.outputStream
+//                    os.write(result.results.size)
+//                }
+//            }
+//        }), "/ch")
 
 
         handler.addServlet(ServletHolder(object : HttpServlet() {

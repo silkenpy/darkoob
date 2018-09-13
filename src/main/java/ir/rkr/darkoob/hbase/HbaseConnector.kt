@@ -7,10 +7,11 @@ import org.apache.hadoop.hbase.HColumnDescriptor
 import org.apache.hadoop.hbase.HTableDescriptor
 import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.client.*
+import org.apache.hadoop.hbase.filter.PrefixFilter
 import org.apache.hadoop.hbase.util.Bytes
 
 
-class HbaseConnector(val tableName: String, config: Config, val dMetric: DMetric) {
+class HbaseConnector(tableName: String, config: Config, val dMetric: DMetric) {
 
     val table: Table
     val connection: Connection
@@ -22,10 +23,10 @@ class HbaseConnector(val tableName: String, config: Config, val dMetric: DMetric
         connection = ConnectionFactory.createConnection(hbConfig)
 
         val admin = HBaseAdmin(hbConfig)
-        val tableAvailable = admin.isTableAvailable("pf")
+        val tableAvailable = admin.isTableAvailable(tableName)
         if (tableAvailable) println("pf table is already Created!")
         else {
-            val tableDescriptor = HTableDescriptor(TableName.valueOf("pf"))
+            val tableDescriptor = HTableDescriptor(TableName.valueOf(tableName))
             tableDescriptor.addFamily(HColumnDescriptor("cf").setMaxVersions(1))
             admin.createTable(tableDescriptor)
         }
@@ -52,8 +53,18 @@ class HbaseConnector(val tableName: String, config: Config, val dMetric: DMetric
     fun scan(startKey: ByteArray, endKey: ByteArray): Map<ByteArray, ByteArray> {
 
         val scan = Scan(startKey, endKey)
-        val result = HashMap<ByteArray,ByteArray>()
-        table.getScanner(scan).forEach{it -> result[it.row] = it.value()}
+        val result = HashMap<ByteArray, ByteArray>()
+        table.getScanner(scan).forEach { it -> result[it.row] = it.value() }
+        return result
+    }
+
+    fun scanWithPrefix(startWith: ByteArray):  Map<ByteArray, ByteArray> {
+
+        val filter = PrefixFilter(startWith)
+        val scan = Scan()
+        scan.filter = filter
+        val result = HashMap<ByteArray, ByteArray>()
+        table.getScanner(scan).forEach { it -> result[it.row] = it.value() }
         return result
     }
 }

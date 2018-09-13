@@ -19,8 +19,7 @@ fun main(args: Array<String>) {
     val config = ConfigFactory.defaultApplication()
     val dmetirc = DMetric()
     JettyRestServer(config, dmetirc)
-    val feeder = HbaseFeeder(config,dmetirc)
-    feeder.start()
+    val tkFeeder = HbaseFeeder("tk",config,dmetirc)
 
     logger.info { "Darkoob V$version is ready :D" }
 

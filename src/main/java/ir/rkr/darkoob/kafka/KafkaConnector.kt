@@ -6,21 +6,18 @@ import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import java.util.*
-import javax.print.DocFlavor
 import kotlin.collections.HashMap
 
 
 /**
  * [Results] is a data model for responses.
  */
-data class Results(var results: HashMap<ByteArray, ByteArray> = HashMap<ByteArray, ByteArray>())
+data class Results(val results: HashMap<ByteArray, ByteArray> = HashMap<ByteArray, ByteArray>())
 
-class KafkaConnector( config: Config) {
-
+class KafkaConnector(val topicName: String, config: Config) {
 
     val consumer: KafkaConsumer<ByteArray, ByteArray>
     val producer: KafkaProducer<ByteArray, ByteArray>
-//    val topicName = config.getString("kafka.consumer.topic.name")
 
     init {
 
@@ -39,21 +36,23 @@ class KafkaConnector( config: Config) {
         producer = KafkaProducer(producercfg)
 
         Thread.sleep(100)
-
     }
 
-    fun get(topicName:String): Map<ByteArray,ByteArray> {
+    fun get(): Map<ByteArray, ByteArray> {
         consumer.subscribe(Collections.singletonList(topicName))
         val res = consumer.poll(2000)
-        val msg = HashMap<ByteArray,ByteArray>()
-        res.records(topicName).forEach { it ->  msg[it.key()]=it.value()}
-        consumer.commitAsync()
+        val msg = HashMap<ByteArray, ByteArray>()
+        res.records(topicName).forEach { it -> msg[it.key()] = it.value() }
         return msg
     }
 
 
-    fun put(topicName:String,key: ByteArray, value: ByteArray) {
+    fun put(key: ByteArray, value: ByteArray) {
         producer.send(ProducerRecord(topicName, key, value))
+    }
+
+    fun commit(){
+        consumer.commitAsync()
     }
 
 }
