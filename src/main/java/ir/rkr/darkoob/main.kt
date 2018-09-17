@@ -9,7 +9,7 @@ import mu.KotlinLogging
 
 
 
-const val version = 0.1
+const val version = 0.2
 
 /**
  * CacheService main entry point.
@@ -19,7 +19,10 @@ fun main(args: Array<String>) {
     val config = ConfigFactory.defaultApplication()
     val dmetirc = DMetric()
     JettyRestServer(config, dmetirc)
+    val pfFeeder = HbaseFeeder("pf",config,dmetirc)
     val tkFeeder = HbaseFeeder("tk",config,dmetirc)
+    val chFeeder = HbaseFeeder("ch",config,dmetirc)
+    val k2kFeeder = HbaseFeeder("k2k",config,dmetirc)
 
     logger.info { "Darkoob V$version is ready :D" }
 

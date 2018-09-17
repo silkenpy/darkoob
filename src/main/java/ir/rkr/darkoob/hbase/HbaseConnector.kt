@@ -7,6 +7,7 @@ import org.apache.hadoop.hbase.HColumnDescriptor
 import org.apache.hadoop.hbase.HTableDescriptor
 import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.client.*
+import org.apache.hadoop.hbase.filter.PageFilter
 import org.apache.hadoop.hbase.filter.PrefixFilter
 import org.apache.hadoop.hbase.util.Bytes
 
@@ -41,7 +42,6 @@ class HbaseConnector(tableName: String, config: Config, val dMetric: DMetric) {
 
     }
 
-
     fun get(rowKey: ByteArray, CF: String, Q: String, maxVersion: Int = 1): ByteArray {
 
         val get = Get(rowKey)
@@ -58,10 +58,13 @@ class HbaseConnector(tableName: String, config: Config, val dMetric: DMetric) {
         return result
     }
 
-    fun scanWithPrefix(startWith: ByteArray):  Map<ByteArray, ByteArray> {
+    fun scanWithPrefix(startWith: ByteArray, limitSize : Long = 50):  Map<ByteArray, ByteArray> {
 
         val filter = PrefixFilter(startWith)
+
         val scan = Scan()
+        val limit = PageFilter(limitSize)
+        scan.setFilter(limit);
         scan.filter = filter
         val result = HashMap<ByteArray, ByteArray>()
         table.getScanner(scan).forEach { it -> result[it.row] = it.value() }
